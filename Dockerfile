@@ -1,21 +1,25 @@
-FROM heroku/heroku:20-build as build
+#Grab the latest alpine image
+FROM alpine:latest
 
-COPY . /app
-WORKDIR /app
+# Install python and pip
+RUN apk add --no-cache --update python3 py3-pip bash
+ADD ./webapp/requirements.txt /tmp/requirements.txt
 
-# Setup buildpack
-RUN mkdir -p /tmp/buildpack/heroku/go /tmp/build_cache /tmp/env
-RUN curl https://buildpack-registry.s3.amazonaws.com/buildpacks/heroku/go.tgz | tar xz -C /tmp/buildpack/heroku/go
+# Install dependencies
+RUN pip3 install --no-cache-dir -q -r /tmp/requirements.txt
 
-#Execute Buildpack
-RUN STACK=heroku-20 /tmp/buildpack/heroku/go/bin/compile /app /tmp/build_cache /tmp/env
+# Add our code
+ADD ./webapp /opt/webapp/
+WORKDIR /opt/webapp
 
-# Prepare final, minimal image
-FROM heroku/heroku:20
+# Expose is NOT supported by Heroku
+# EXPOSE 5000 		
 
-COPY --from=build /app /app
-ENV HOME /app
-WORKDIR /app
-RUN useradd -m heroku
-USER heroku
-CMD /app/bin/go-getting-started
+# Run the image as a non-root user
+RUN adduser -D myuser
+USER myuser
+
+# Run the app.  CMD is required to run on Heroku
+# $PORT is set by Heroku			
+CMD gunicorn --bind 0.0.0.0:$PORT wsgi 
+
